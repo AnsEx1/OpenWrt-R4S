@@ -10,7 +10,7 @@ on:
         default: true
 
 env:
-  REPO_URL: https://github.com/VFool/immortalwrt
+  REPO_URL: https://github.com/AnsEx1/immortalwrt
   REPO_BRANCH: openwrt-25.12
   FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: .config
