@@ -7,7 +7,7 @@ on:
       use_cache:
         description: '缓存加速'
         type: boolean
-        default: true
+        default: false
 
 env:
   REPO_URL: https://github.com/VFool/immortalwrt
@@ -135,10 +135,15 @@ jobs:
       id: organize
       if: env.UPLOAD_FIRMWARE == 'true' || env.UPLOAD_RELEASE == 'true' && !cancelled()
       run: |
-        cd openwrt/bin/targets/*/*
-        if ls *sysupgrade* *factory* *.img *.img.gz 1> /dev/null 2>&1; then
+        cd openwrt/bin/targets
+        # 递归查找固件文件
+        FIRMWARE_DIR=$(find . -type f \( -name "*sysupgrade*" -o -name "*factory*" -o -name "*.img" -o -name "*.img.gz" \) -print -quit | xargs dirname 2>/dev/null)
+        if [ -n "$FIRMWARE_DIR" ]; then
+          echo "✅ 固件目录: $FIRMWARE_DIR"
+          echo "FIRMWARE_PATH=openwrt/bin/targets/${FIRMWARE_DIR#./}" >> $GITHUB_ENV
           echo "status=success" >> $GITHUB_OUTPUT
         else
+          echo "❌ 未找到任何固件文件"
           echo "status=failure" >> $GITHUB_OUTPUT
           exit 1
         fi
