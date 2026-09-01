@@ -7,7 +7,7 @@ on:
       use_cache:
         description: '缓存加速'
         type: boolean
-        default: true
+        default: false
 
 env:
   REPO_URL: https://github.com/AnsEx1/immortalwrt
