@@ -19,7 +19,6 @@ on:
 env:
   REPO_URL: https://github.com/immortalwrt/immortalwrt
   REPO_BRANCH: ${{ github.event.inputs.branch || 'openwrt-25.12' }}
-  # 存在 .config.<分支后缀> 时优先使用，否则用该默认文件
   CONFIG_FILE: .config
   DIY_P1_SH: diy-part1.sh
   DIY_P2_SH: diy-part2.sh
@@ -102,7 +101,6 @@ jobs:
 
     - name: Load custom configuration
       run: |
-        # 分支名转安全后缀：openwrt-25.12 -> 25.12；先去掉换行，避免 tr -c 把 \n 变成下划线
         BRANCH_SUFFIX=$(printf '%s' "$REPO_BRANCH" | sed 's/^openwrt-//' | tr -c 'A-Za-z0-9._-' '_' | sed 's/_*$//')
         echo "分支: $REPO_BRANCH  ->  配置后缀: $BRANCH_SUFFIX"
 
@@ -173,15 +171,12 @@ jobs:
       run: |
         cd openwrt
         echo "$(nproc) thread compile"
-        # 必须开启 pipefail: 否则 `make | tee` 的退出码取自 tee（恒为 0），
-        # make 的失败会被吞掉，降级重试和错误输出都不会执行
         set -o pipefail
         if ! make -j$(nproc) 2>&1 | tee build.log; then
           echo "::warning::并行编译失败，降级单线程重试"
           if ! make -j1 V=s 2>&1 | tee -a build.log; then
             echo "::error::编译失败，输出最后 200 行"
             tail -200 build.log
-            # OpenWrt 把单包详细日志写在 logs/ 下，转储以便定位
             if [ -d logs ]; then
               echo "=== logs/ 下的编译日志 ==="
               find logs -type f | head -30

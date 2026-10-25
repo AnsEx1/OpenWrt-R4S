@@ -1,11 +1,9 @@
 #!/bin/bash
 
-# 修正 toolchain 的 PKG_VERSION 为 unknown 时导致的 libgcc 版本错误
 fix_libgcc_version() {
     local makefile="package/libs/toolchain/Makefile"
     local gcc_bin gcc_ver current_ver
 
-    # 优先用交叉工具链的 gcc，否则退回宿主 gcc
     if command -v aarch64-openwrt-linux-musl-gcc >/dev/null 2>&1; then
         gcc_bin="aarch64-openwrt-linux-musl-gcc"
     elif command -v arm-openwrt-linux-musl-gcc >/dev/null 2>&1; then
@@ -13,18 +11,18 @@ fix_libgcc_version() {
     elif command -v gcc >/dev/null 2>&1; then
         gcc_bin="gcc"
     else
-        echo "⚠️ 未找到 gcc，跳过版本修复"
+        echo "未找到 gcc，跳过版本修复"
         return 1
     fi
 
     gcc_ver=$($gcc_bin -dumpversion 2>/dev/null | cut -d. -f1-3)
     if [ -z "$gcc_ver" ]; then
-        echo "⚠️ 无法获取 gcc 版本，跳过修复"
+        echo "无法获取 gcc 版本，跳过修复"
         return 1
     fi
 
     if [ ! -f "$makefile" ]; then
-        echo "⚠️ 未找到 $makefile，跳过"
+        echo "未找到 $makefile，跳过"
         return 1
     fi
 
@@ -32,11 +30,11 @@ fix_libgcc_version() {
     echo "当前 PKG_VERSION: $current_ver"
 
     if echo "$current_ver" | grep -qi "unknown"; then
-        echo "🔧 修复 PKG_VERSION -> $gcc_ver"
+        echo "修复 PKG_VERSION -> $gcc_ver"
         sed -i "s/^PKG_VERSION\s*:=.*/PKG_VERSION:=$gcc_ver/" "$makefile"
         rm -rf build_dir/target-*/toolchain
     else
-        echo "✅ PKG_VERSION 正常，无需修复"
+        echo "PKG_VERSION 正常，无需修复"
     fi
 }
 
