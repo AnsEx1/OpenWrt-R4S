@@ -5,35 +5,21 @@ on:
   workflow_dispatch:
     inputs:
       branch:
-        description: '源码分支（下拉选择）'
+        description: '源码分支'
         type: choice
         options:
           - openwrt-25.12
           - openwrt-24.10
-          - openwrt-23.05
-          - master
-          - main
         default: openwrt-25.12
-      branch_custom:
-        description: '自定义分支（可选，填写后覆盖上面的下拉选择）'
-        type: string
-        required: false
-        default: ''
-      repo_url:
-        description: '源码仓库（可选，留空则用默认 AnsEx1/immortalwrt）'
-        type: string
-        required: false
-        default: ''
       use_cache:
         description: '缓存加速'
         type: boolean
         default: false
 
 env:
-  # 优先级: 自定义仓库 > 默认仓库
-  REPO_URL: ${{ github.event.inputs.repo_url || 'https://github.com/AnsEx1/immortalwrt' }}
-  # 优先级: 自定义分支 > 下拉选择 > 默认值
-  REPO_BRANCH: ${{ github.event.inputs.branch_custom || github.event.inputs.branch || 'openwrt-25.12' }}
+  REPO_URL: https://github.com/AnsEx1/immortalwrt
+  # 优先取手动选择的 branch，repository_dispatch 时回退默认
+  REPO_BRANCH: ${{ github.event.inputs.branch || 'openwrt-25.12' }}
   FEEDS_CONF: feeds.conf.default
   # 按分支选择配置文件：.config.<版本> 存在则用它，否则用 .config
   CONFIG_FILE: .config
@@ -46,7 +32,7 @@ env:
   CCACHE_MAXSIZE: 2G
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.inputs.branch_custom || github.event.inputs.branch || 'default' }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.inputs.branch || 'default' }}
   cancel-in-progress: true
 
 jobs:
@@ -65,17 +51,7 @@ jobs:
         echo "源码分支: $REPO_BRANCH"
         echo "配置文件: $CONFIG_FILE"
         echo "缓存启用: ${{ github.event.inputs.use_cache == 'true' }}"
-        echo "------------------------------------------"
-        echo "下拉选择分支: ${{ github.event.inputs.branch || '(未提供)' }}"
-        echo "自定义分支  : ${{ github.event.inputs.branch_custom || '(未填)' }}"
-        echo "自定义仓库  : ${{ github.event.inputs.repo_url || '(未填)' }}"
         echo "=========================================="
-        if [ -n "${{ github.event.inputs.branch_custom }}" ]; then
-          echo "::notice::已使用自定义分支: ${{ github.event.inputs.branch_custom }}"
-        fi
-        if [ -n "${{ github.event.inputs.repo_url }}" ]; then
-          echo "::notice::已使用自定义仓库: ${{ github.event.inputs.repo_url }}"
-        fi
 
     - name: Initialization environment
       env:
