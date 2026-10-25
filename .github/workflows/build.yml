@@ -17,7 +17,7 @@ on:
         default: false
 
 env:
-  REPO_URL: https://github.com/AnsEx1/immortalwrt
+  REPO_URL: https://github.com/immortalwrt/immortalwrt
   # 优先取手动选择的 branch，repository_dispatch 时回退默认
   REPO_BRANCH: ${{ github.event.inputs.branch || 'openwrt-25.12' }}
   FEEDS_CONF: feeds.conf.default
