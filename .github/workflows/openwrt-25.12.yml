@@ -101,7 +101,6 @@ jobs:
       with:
         path: |
           openwrt/dl
-          openwrt/staging_dir
           openwrt/feeds
           ${{ env.CCACHE_DIR }}
         key: ${{ runner.os }}-openwrt-${{ env.REPO_BRANCH }}-${{ hashFiles('feeds.conf.default', 'diy-part1.sh', 'diy-part2.sh', '.config') }}
@@ -133,7 +132,7 @@ jobs:
 
     - name: Check firmware existence
       id: organize
-      if: env.UPLOAD_FIRMWARE == 'true' || env.UPLOAD_RELEASE == 'true' && !cancelled()
+      if: (env.UPLOAD_FIRMWARE == 'true' || env.UPLOAD_RELEASE == 'true') && !cancelled()
       run: |
         cd openwrt/bin/targets
         # 递归查找固件文件
