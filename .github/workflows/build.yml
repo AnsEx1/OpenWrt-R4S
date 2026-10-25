@@ -5,23 +5,37 @@ on:
   workflow_dispatch:
     inputs:
       branch:
-        description: '源码分支'
+        description: '源码分支（下拉选择）'
         type: choice
         options:
           - openwrt-25.12
           - openwrt-24.10
+          - openwrt-23.05
+          - master
+          - main
         default: openwrt-25.12
+      branch_custom:
+        description: '自定义分支（可选，填写后覆盖上面的下拉选择）'
+        type: string
+        required: false
+        default: ''
+      repo_url:
+        description: '源码仓库（可选，留空则用默认 AnsEx1/immortalwrt）'
+        type: string
+        required: false
+        default: ''
       use_cache:
         description: '缓存加速'
         type: boolean
         default: false
 
 env:
-  REPO_URL: https://github.com/AnsEx1/immortalwrt
-  # 优先取手动输入的 branch，repository_dispatch 时回退默认
-  REPO_BRANCH: ${{ github.event.inputs.branch || 'openwrt-25.12' }}
+  # 优先级: 自定义仓库 > 默认仓库
+  REPO_URL: ${{ github.event.inputs.repo_url || 'https://github.com/AnsEx1/immortalwrt' }}
+  # 优先级: 自定义分支 > 下拉选择 > 默认值
+  REPO_BRANCH: ${{ github.event.inputs.branch_custom || github.event.inputs.branch || 'openwrt-25.12' }}
   FEEDS_CONF: feeds.conf.default
-  # 按分支选择配置文件：.config.24.10 存在则用它，否则用 .config
+  # 按分支选择配置文件：.config.<版本> 存在则用它，否则用 .config
   CONFIG_FILE: .config
   DIY_P1_SH: diy-part1.sh
   DIY_P2_SH: diy-part2.sh
@@ -32,7 +46,7 @@ env:
   CCACHE_MAXSIZE: 2G
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.inputs.branch || 'default' }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.inputs.branch_custom || github.event.inputs.branch || 'default' }}
   cancel-in-progress: true
 
 jobs:
@@ -46,10 +60,22 @@ jobs:
 
     - name: Show build target
       run: |
+        echo "=========================================="
         echo "源码仓库: $REPO_URL"
         echo "源码分支: $REPO_BRANCH"
         echo "配置文件: $CONFIG_FILE"
         echo "缓存启用: ${{ github.event.inputs.use_cache == 'true' }}"
+        echo "------------------------------------------"
+        echo "下拉选择分支: ${{ github.event.inputs.branch || '(未提供)' }}"
+        echo "自定义分支  : ${{ github.event.inputs.branch_custom || '(未填)' }}"
+        echo "自定义仓库  : ${{ github.event.inputs.repo_url || '(未填)' }}"
+        echo "=========================================="
+        if [ -n "${{ github.event.inputs.branch_custom }}" ]; then
+          echo "::notice::已使用自定义分支: ${{ github.event.inputs.branch_custom }}"
+        fi
+        if [ -n "${{ github.event.inputs.repo_url }}" ]; then
+          echo "::notice::已使用自定义仓库: ${{ github.event.inputs.repo_url }}"
+        fi
 
     - name: Initialization environment
       env:
@@ -105,9 +131,12 @@ jobs:
     - name: Load custom configuration
       run: |
         [ -e files ] && cp -r files openwrt/
-        # 优先使用分支专属配置（如 .config.24.10），否则用通用 .config
-        BRANCH_SUFFIX=$(echo "$REPO_BRANCH" | sed 's/^openwrt-//')
-        if [ -f ".config.${BRANCH_SUFFIX}" ]; then
+        # 从分支名推导配置后缀，如 openwrt-25.12 -> 25.12
+        # 自定义分支可能含 / 等字符，只保留安全字符（先去掉换行，避免 tr -c 把 \n 转成下划线）
+        BRANCH_SUFFIX=$(printf '%s' "$REPO_BRANCH" | sed 's/^openwrt-//' | tr -c 'A-Za-z0-9._-' '_' | sed 's/_*$//')
+        echo "分支: $REPO_BRANCH  ->  配置后缀: $BRANCH_SUFFIX"
+
+        if [ -n "$BRANCH_SUFFIX" ] && [ -f ".config.${BRANCH_SUFFIX}" ]; then
           echo "✅ 使用分支专属配置: .config.${BRANCH_SUFFIX}"
           cp ".config.${BRANCH_SUFFIX}" openwrt/.config
         elif [ -f "$CONFIG_FILE" ]; then
@@ -119,7 +148,7 @@ jobs:
             echo "::warning::如需稳定构建，请创建 .config.${BRANCH_SUFFIX} 针对该分支定制"
           fi
         else
-          echo "::error::未找到配置文件"
+          echo "::error::未找到配置文件（既无 .config.${BRANCH_SUFFIX} 也无 $CONFIG_FILE）"
           exit 1
         fi
 
