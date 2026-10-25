@@ -30,5 +30,7 @@ clone_pkg https://github.com/EasyTier/luci-app-easytier.git package/luci-app-eas
 clone_pkg https://github.com/sbwml/luci-app-mosdns.git package/mosdns-full
 
 # --- 校园网认证 ---
-# 提供: esurfingclient + luci-app-esurfingclient
-clone_pkg https://github.com/BadGhost520/ESurfingClient-CVersion.git package/esurfingclient-full
+# 不克隆：上游 Makefile 的静态链接方式与 OpenWrt buildroot 冲突，
+# 需要改动上游源码多处，侵入性过大。
+# 改为刷机后手动安装官方预编译 apk（见 README / .config 说明）。
+# clone_pkg https://github.com/BadGhost520/ESurfingClient-CVersion.git package/esurfingclient-full

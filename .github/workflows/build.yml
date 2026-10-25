@@ -179,11 +179,23 @@ jobs:
       run: |
         cd openwrt
         echo "$(nproc) thread compile"
+        # 必须开启 pipefail: 否则 `make | tee` 的退出码取自 tee（恒为 0），
+        # make 的失败会被吞掉，降级重试和错误输出都不会执行
+        set -o pipefail
         if ! make -j$(nproc) 2>&1 | tee build.log; then
           echo "::warning::并行编译失败，降级单线程重试"
           if ! make -j1 V=s 2>&1 | tee -a build.log; then
-            echo "::error::编译失败"
+            echo "::error::编译失败，输出最后 200 行"
             tail -200 build.log
+            # OpenWrt 把单包详细日志写在 logs/ 下，转储以便定位
+            if [ -d logs ]; then
+              echo "=== logs/ 下的编译日志 ==="
+              find logs -type f | head -30
+              for f in $(find logs -type f -name "*.txt" | head -5); do
+                echo "--------- $f ---------"
+                tail -60 "$f"
+              done
+            fi
             exit 1
           fi
         fi
@@ -193,13 +205,17 @@ jobs:
         echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
 
     - name: Upload build log on failure
+      # failure() 覆盖编译失败。编译一旦失败会 exit 1，本步骤必然触发；
+      # 不需要也无法引用后续步骤的 outputs（那时还未执行）
       if: failure()
       uses: actions/upload-artifact@v4
       with:
         name: build-log-${{ env.REPO_BRANCH }}
-        path: openwrt/build.log
+        path: |
+          openwrt/build.log
+          openwrt/logs/
         retention-days: 3
-        if-no-files-found: ignore
+        if-no-files-found: warn
 
     - name: Check space usage
       if: always()

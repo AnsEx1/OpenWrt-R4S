@@ -3,8 +3,9 @@
 基于 GitHub Actions 自动编译 [ImmortalWrt](https://github.com/immortalwrt/immortalwrt) 固件，为 **FriendlyElec NanoPi R4S** 定制。
 
 - 源码分支：`openwrt-25.12` / `openwrt-24.10`
-- 预装 OpenClash、MosDNS、ESurfingClient、EasyTier、UA3F、fancontrol 等
+- 预装 OpenClash、MosDNS、EasyTier、UA3F、fancontrol 等
 - 使用方式：Actions → `OpenWrt Build` → Run workflow，完成后在 Releases 下载固件
+- 校园网认证 `ESurfingClient` **不编入固件**（上游静态链接方式与 buildroot 冲突），刷机后手动安装官方预编译 apk
 
 ---
 

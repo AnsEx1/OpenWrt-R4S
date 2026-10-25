@@ -6,28 +6,14 @@
 # --- 添加 turboacc 加速插件 ---
 # curl -sSL https://raw.githubusercontent.com/mufeng05/turboacc/main/add_turboacc.sh -o add_turboacc.sh && bash add_turboacc.sh
 
-# --- esurfingclient 构建依赖修正 ---
-# 上游 Makefile 写的是 PKG_BUILD_DEPENDS:=libcurl
-# 但 OpenWrt 的 PKG_BUILD_DEPENDS 需要【源码目录名】而非子包名
-# 实际目录是 package/net/curl/（libcurl 是它产出的子包）
-# 依赖名错误导致 libcurl 不被预编译，CMake find_package(CURL REQUIRED) 直接失败
-fix_esurfingclient_dep() {
-    local makefile="package/esurfingclient-full/esurfingclient/Makefile"
-
-    if [ ! -f "$makefile" ]; then
-        echo "⚠️ 未找到 $makefile，跳过"
-        return 0
-    fi
-
-    if grep -q '^PKG_BUILD_DEPENDS:=libcurl$' "$makefile"; then
-        echo "🔧 修正 esurfingclient 构建依赖: libcurl -> curl"
-        sed -i 's/^PKG_BUILD_DEPENDS:=libcurl$/PKG_BUILD_DEPENDS:=curl/' "$makefile"
-    else
-        echo "✅ esurfingclient 依赖正常或已修正"
-    fi
-
-    echo "   当前值: $(grep -E '^PKG_BUILD_DEPENDS' "$makefile" || echo '未设置')"
-}
+# --- 说明：esurfingclient 不再编入固件 ---
+# 上游 Makefile 采用 -static 全静态链接 + CMakeLists 硬编码 CURL_USE_STATIC_LIBS，
+# 与 OpenWrt buildroot 冲突，需改动上游源码 4 处（依赖名、链接标志、CMake 静态库偏好、
+# libatomic 处理），侵入性过大，故不编入固件。
+# 刷机后手动安装官方预编译包即可：
+#   esurfingclient_2.2.0-4_aarch64_generic.apk
+#   luci-app-esurfingclient_2.2.0-4_all.apk
+#   apk add --allow-untrusted /tmp/esurfingclient.apk
 
 # --- 版本号 ---
 fix_libgcc_version() {
@@ -78,5 +64,4 @@ fix_libgcc_version() {
 }
 
 # 执行修复
-fix_esurfingclient_dep
 fix_libgcc_version
