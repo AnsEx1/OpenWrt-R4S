@@ -9,5 +9,3 @@ if [ -n "$GCC_VER" ] && [ -f "$TOOLCHAIN_MK" ] \
     sed -i "s/^PKG_VERSION[[:space:]]*:=.*/PKG_VERSION:=$GCC_VER/" "$TOOLCHAIN_MK"
     rm -rf build_dir/target-*/toolchain
 fi
-
-curl -sSL https://raw.githubusercontent.com/mufeng05/openwrt-sonic-fullcone/master/add_sonic_fullcone.sh | bash
