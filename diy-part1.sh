@@ -15,3 +15,4 @@ clone_pkg https://github.com/EasyTier/luci-app-easytier.git package/luci-app-eas
 clone_pkg https://github.com/sbwml/luci-app-mosdns.git package/mosdns-full
 clone_pkg https://github.com/timsaya/openwrt-bandix.git package/bandix
 clone_pkg https://github.com/timsaya/luci-app-bandix.git package/luci-app-bandix
+clone_pkg https://github.com/BadGhost520/ESurfingClient-CVersion.git package/esurfingclient-c
