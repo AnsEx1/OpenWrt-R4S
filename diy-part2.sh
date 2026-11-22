@@ -9,8 +9,3 @@ if [ -n "$GCC_VER" ] && [ -f "$TOOLCHAIN_MK" ] \
     sed -i "s/^PKG_VERSION[[:space:]]*:=.*/PKG_VERSION:=$GCC_VER/" "$TOOLCHAIN_MK"
     rm -rf build_dir/target-*/toolchain
 fi
-
-ES_MK="package/esurfingclient-c/esurfingclient/Makefile"
-if [ -f "$ES_MK" ]; then
-    sed -i 's|-DCMAKE_EXE_LINKER_FLAGS="-static -lpthread -latomic"|-DCMAKE_EXE_LINKER_FLAGS="-static -lpthread -latomic" -DCMAKE_C_STANDARD_LIBRARIES="-lnghttp2 -lssl -lcrypto -lz -lpthread -latomic"|' "$ES_MK"
-fi
