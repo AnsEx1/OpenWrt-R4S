@@ -23,7 +23,7 @@ on:
         default: false
 
 env:
-  REPO_URL: https://github.com/immortalwrt/immortalwrt
+  REPO_URL: https://github.com/AnsEx1/immortalwrt
   REPO_BRANCH: ${{ github.event.inputs.branch || 'openwrt-25.12' }}
   CONFIG_FILE: .config
   DIY_P1_SH: diy-part1.sh
