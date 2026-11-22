@@ -1,0 +1,172 @@
+name: Build ESurfingClient
+
+on:
+  workflow_dispatch:
+    inputs:
+      esurfing_ref:
+        description: 'ESurfingClient 源码 ref（空=使用上游 master）'
+        required: false
+        default: ''
+      sdk_image:
+        description: 'SDK 镜像标签'
+        required: true
+        default: 'rockchip-armv8-25.12.6'
+        type: choice
+        options:
+          - rockchip-armv8-25.12.6
+          - rockchip-armv8-25.12.5
+          - rockchip-armv8-25.12-SNAPSHOT
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    container:
+      image: openwrt/sdk:${{ github.event.inputs.sdk_image }}
+      options: --user root
+    env:
+      ES_REPO: https://github.com/BadGhost520/ESurfingClient-CVersion
+      ES_REF: ${{ github.event.inputs.esurfing_ref }}
+      SDK_TAG: ${{ github.event.inputs.sdk_image }}
+
+    steps:
+      - name: Show build target
+        run: |
+          echo "=========================================="
+          echo "SDK 镜像:     $SDK_TAG"
+          echo "ESurfing 源:  $ES_REPO"
+          echo "ESurfing ref: ${ES_REF:-(上游 master)}"
+          echo "=========================================="
+          echo "--- SDK 信息 ---"
+          cat /builder/rules.mk 2>/dev/null | grep -E "^CONFIG_TARGET|^ARCH" | head -5
+          echo "ARCH: $(grep '^CONFIG_TARGET_ARCH_PACKAGES=' /builder/.config 2>/dev/null | cut -d= -f2)"
+          echo "--- 工具链版本 ---"
+          ls /builder/staging_dir/ 2>/dev/null
+
+      - name: Initialization environment
+        run: |
+          set -e
+          cd /builder
+          # SDK 已预置 .config；确保存在
+          [ -f .config ] || make defconfig
+          echo "--- 目标平台确认 ---"
+          grep -E "CONFIG_TARGET_(BOARD|SUBTARGET|ARCH_PACKAGES)" .config | head -5 || true
+
+      - name: Update packages feed and install curl
+        run: |
+          set -e
+          cd /builder
+          scripts/feeds update packages
+          scripts/feeds install curl
+          # 确保 libcurl 被选中（用 echo 避免 heredoc 缩进污染 .config）
+          grep -q "^CONFIG_PACKAGE_libcurl=y" .config || echo "CONFIG_PACKAGE_libcurl=y" >> .config
+          make defconfig
+          echo "--- libcurl 配置 ---"
+          grep -E "CONFIG_LIBCURL_(HTTP2|OPENSSL|ZLIB|NOSSL)" .config || true
+
+      - name: Build libcurl (with dev headers + static lib)
+        run: |
+          set -e
+          cd /builder
+          make package/curl/compile -j$(nproc) V=s
+          echo "--- 产物 ---"
+          ls -la staging_dir/target-*/usr/lib/libcurl* 2>/dev/null || true
+          ls -la staging_dir/target-*/usr/include/curl/ 2>/dev/null | head -5 || true
+          ls -la staging_dir/target-*/usr/lib/pkgconfig/libcurl.pc 2>/dev/null || true
+
+      - name: Clone ESurfingClient
+        run: |
+          set -e
+          cd /builder
+          if [ -n "$ES_REF" ]; then
+            git clone --depth=1 --branch "$ES_REF" "$ES_REPO" package/esurfingclient-c
+          else
+            git clone --depth=1 "$ES_REPO" package/esurfingclient-c
+          fi
+          echo "--- 源码版本 ---"
+          cat package/esurfingclient-c/esurfingclient/Makefile | grep -E "PKG_VERSION|PKG_RELEASE"
+          echo "--- CMakeLists 链接段 ---"
+          grep -nE "CURL::libcurl|find_package|find_library|target_link_libraries" \
+            package/esurfingclient-c/esurfingclient/app/CMakeLists.txt | head -20
+
+      - name: Build esurfingclient
+        run: |
+          set -e
+          cd /builder
+          if make package/esurfingclient-c/esurfingclient/compile -j$(nproc) V=s; then
+            echo "✅ 编译成功"
+          else
+            echo "::error::并行编译失败，降级 -j1 重试"
+            make package/esurfingclient-c/esurfingclient/compile -j1 V=s
+          fi
+
+      - name: Collect packages
+        id: collect
+        run: |
+          set -e
+          cd /builder
+          echo "--- 查找产物 ---"
+          find bin/packages -type f \( -name "esurfingclient*" -o -name "*esurfing*" \) 2>/dev/null | tee /tmp/found.txt
+          COUNT=$(wc -l < /tmp/found.txt)
+          echo "找到 $COUNT 个文件"
+          if [ "$COUNT" -eq 0 ]; then
+            echo "::error::未找到任何包产物"
+            exit 1
+          fi
+          mkdir -p /tmp/out
+          while IFS= read -r f; do cp -v "$f" /tmp/out/; done < /tmp/found.txt
+          echo "--- 产物详情 ---"
+          ls -la /tmp/out/
+          echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: Verify binary architecture
+        run: |
+          set -e
+          cd /builder
+          echo "--- 包内容架构检查 ---"
+          for pkg in /tmp/out/*.apk /tmp/out/*.ipk; do
+            [ -f "$pkg" ] || continue
+            echo "=== $(basename $pkg) ==="
+            case "$pkg" in
+              *.apk)
+                # apk 是 tar.gz 变体，尝试解包看控制信息
+                tar -tzf "$pkg" 2>/dev/null | head -10 || echo "(无法列出)"
+                ;;
+              *.ipk)
+                tar -tzf "$pkg" 2>/dev/null | head -10 || echo "(无法列出)"
+                ;;
+            esac
+          done
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: esurfingclient-${{ env.SDK_TAG }}-${{ github.run_number }}
+          path: /tmp/out/*
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Summary
+        run: |
+          {
+            echo "## ESurfingClient 构建结果"
+            echo ""
+            echo "| 项目 | 值 |"
+            echo "|---|---|"
+            echo "| SDK 镜像 | \`$SDK_TAG\` |"
+            echo "| 源码 | $ES_REPO @ ${ES_REF:-master} |"
+            echo "| 产物数 | $(ls /tmp/out/ 2>/dev/null | wc -l) |"
+            echo ""
+            echo "### 产物"
+            echo '```'
+            ls -la /tmp/out/ 2>/dev/null || echo "(无)"
+            echo '```'
+          } >> $GITHUB_STEP_SUMMARY
